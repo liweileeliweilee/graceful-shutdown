@@ -1,11 +1,11 @@
 #!/bin/bash
 set -e
 
-echo "🚀 Installing dependencies..."
+echo "🚀 安裝必要套件..."
 sudo apt update
 sudo apt install -y wmctrl xdotool libnotify-bin
 
-echo "📂 Creating shutdown script..."
+echo "📂 建立主關閉腳本..."
 sudo tee /usr/local/bin/graceful-shutdown-all.sh > /dev/null << 'EOF'
 #!/bin/bash
 USER_NAME=$(whoami)
@@ -13,10 +13,7 @@ COUNTDOWN=10
 
 notify() {
     if command -v notify-send >/dev/null 2>&1; then
-        DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus notify-send \
-            "⚠ 系統即將關機或登出" \
-            "所有應用程式將於 $COUNTDOWN 秒後被自動關閉…" \
-            --icon=system-shutdown --urgency=critical
+        DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus notify-send             "⚠ 系統即將關機或登出"             "所有應用程式將於 $COUNTDOWN 秒後被自動關閉…"             --icon=system-shutdown --urgency=critical
     fi
 }
 
@@ -61,7 +58,7 @@ EOF
 
 sudo chmod +x /usr/local/bin/graceful-shutdown-all.sh
 
-echo "🧷 Installing user logout service..."
+echo "🧷 建立使用者登出服務..."
 mkdir -p ~/.config/systemd/user
 cat > ~/.config/systemd/user/graceful-exit.service <<EOF
 [Unit]
@@ -75,14 +72,15 @@ TimeoutSec=30
 RemainAfterExit=true
 
 [Install]
-WantedBy=default.target
+WantedBy=exit.target
+
 EOF
 
 systemctl --user daemon-reexec
 systemctl --user daemon-reload
 systemctl --user enable graceful-exit.service
 
-echo "🧷 Installing system shutdown service..."
+echo "🧷 建立系統關機服務..."
 sudo tee /etc/systemd/system/graceful-shutdown.service > /dev/null <<EOF
 [Unit]
 Description=Gracefully shutdown all user applications before shutdown
@@ -104,4 +102,4 @@ sudo systemctl daemon-reexec
 sudo systemctl daemon-reload
 sudo systemctl enable graceful-shutdown.service
 
-echo "✅ Installation complete. Will gracefully close apps on logout/shutdown."
+echo "✅ 安裝完成！下次登出或關機會自動優雅關閉應用程式。"
