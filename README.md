@@ -5,12 +5,12 @@
 ## 🚀 一鍵安裝指令
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/你的帳號/graceful-shutdown/main/setup-graceful-shutdown.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/liweileeliweilee/graceful-shutdown/main/setup-graceful-shutdown.sh)
 ```
 ## 🚀 一鍵解除安裝指令
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/你的帳號/graceful-shutdown/main/uninstall-graceful-shutdown.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/liweileeliweilee/graceful-shutdown/main/uninstall-graceful-shutdown.sh)
 ```
 
 ## 功能
