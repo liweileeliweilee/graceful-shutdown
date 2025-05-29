@@ -1,23 +1,17 @@
 #!/bin/bash
 set -e
 
-echo "🔧 正在停用並移除 graceful-shutdown..."
-
-# 停用 systemd 服務
-systemctl --user disable graceful-exit.service 2>/dev/null || true
-systemctl disable graceful-shutdown.service 2>/dev/null || true
-
-# 移除服務檔案
+echo "🧹 停用並移除使用者登出服務..."
+systemctl --user disable graceful-exit.service || true
 rm -f ~/.config/systemd/user/graceful-exit.service
-sudo rm -f /etc/systemd/system/graceful-shutdown.service
-
-# 移除主腳本
-sudo rm -f /usr/local/bin/graceful-shutdown-all.sh
-
-# 重新載入 systemd
-systemctl --user daemon-reexec
 systemctl --user daemon-reload
-sudo systemctl daemon-reexec
+
+echo "🧹 停用並移除系統關機服務..."
+sudo systemctl disable graceful-shutdown.service || true
+sudo rm -f /etc/systemd/system/graceful-shutdown.service
 sudo systemctl daemon-reload
 
-echo "✅ graceful-shutdown 已成功解除安裝。"
+echo "🧹 移除主關閉腳本..."
+sudo rm -f /usr/local/bin/graceful-shutdown-all.sh
+
+echo "✅ 已移除 graceful-shutdown 相關設定與腳本。"
