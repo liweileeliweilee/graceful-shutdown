@@ -10,7 +10,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/liweileeliweilee/graceful-sh
 ## 🚀 一鍵解除安裝指令
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/liweileeliweilee/graceful-shutdown/main/remove-graceful-shutdown.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/liweileeliweilee/graceful-shutdown/main/uninstall-graceful-shutdown.sh)
 ```
 
 ## 功能
