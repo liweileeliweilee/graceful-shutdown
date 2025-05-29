@@ -107,7 +107,7 @@ close_windows
 terminate_apps
 
 if [ "$IS_SHUTDOWN" -eq 1 ]; then
-    shutdown_dsm_vm
+#    shutdown_dsm_vm
     try_umount
 fi
 
