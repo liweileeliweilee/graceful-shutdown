@@ -22,7 +22,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/liweileeliweilee/graceful-sh
 - 找出 Chrome 的視窗 ID。
 - 將它切換到前景（模擬使用者點選視窗）。
 - 傳送 Ctrl+Q 模擬鍵盤關閉。
-- 在關機流程（--shutdown 參數）時，主動發送 qm shutdown 820，並等待該 VM 退出狀態，最多等 600 秒 (10 分鐘)。
+- #目前disable shutdown_dsm_vm。在關機流程（--shutdown 參數）時，主動發送 qm shutdown 820，並等待該 VM 退出狀態，最多等 600 秒 (10 分鐘)。
 
 ## 相依套件
 - wmctrl
