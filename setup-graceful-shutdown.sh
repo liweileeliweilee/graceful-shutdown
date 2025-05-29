@@ -32,12 +32,14 @@ sync_disks() {
 }
 
 close_chrome() {
-    echo "[1/8] 嘗試模擬 Ctrl+Shift+Q 關閉 Chrome..."
+    echo "[1/8] 嘗試模擬點擊 Chrome 右上角關閉按鈕..."
     CHROME_WID=$(xdotool search --onlyvisible --class "chrome" | head -n 1)
     if [ -n "$CHROME_WID" ]; then
-        xdotool windowfocus "$CHROME_WID"
-        xdotool key --clearmodifiers ctrl+shift+q
-        sleep 4
+        xdotool windowactivate --sync "$CHROME_WID"
+        eval $(xdotool getwindowgeometry --shell "$CHROME_WID")
+        xdotool mousemove --sync $((X + WIDTH - 15)) $((Y + 15))
+        xdotool click 1
+        sleep 5
     fi
 }
 
@@ -73,12 +75,10 @@ try_umount() {
 
 shutdown_dsm_vm() {
     echo "[5/8] 主動關閉 DSM VM (VMID=$DSM_VMID) 並等待完成..."
-    # 先嘗試關機指令
     sudo qm shutdown $DSM_VMID || echo "警告：發送關機指令失敗，可能 VM 未啟動"
     
     local elapsed=0
     while [ $elapsed -lt $DSM_SHUTDOWN_TIMEOUT ]; do
-        # 查詢 VM 狀態
         status=$(sudo qm status $DSM_VMID 2>/dev/null || echo "stopped")
         if [[ "$status" != "running" ]]; then
             echo "DSM VM 已關閉。"
@@ -98,7 +98,6 @@ final_action() {
     [ "$IS_SHUTDOWN" -eq 1 ] && sync && systemctl poweroff
 }
 
-# 判斷是否為關機路徑
 [[ "$1" == "--shutdown" ]] && IS_SHUTDOWN=1
 
 notify
@@ -107,7 +106,6 @@ close_chrome
 close_windows
 terminate_apps
 
-# 關機路徑才執行 DSM VM 關閉及 umount
 if [ "$IS_SHUTDOWN" -eq 1 ]; then
     shutdown_dsm_vm
     try_umount
