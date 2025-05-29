@@ -10,7 +10,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/liweileeliweilee/graceful-sh
 ## 🚀 一鍵解除安裝指令
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/liweileeliweilee/graceful-shutdown/main/uninstall-graceful-shutdown.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/liweileeliweilee/graceful-shutdown/main/remove-graceful-shutdown.sh)
 ```
 
 ## 功能
@@ -19,6 +19,9 @@ bash <(curl -fsSL https://raw.githubusercontent.com/liweileeliweilee/graceful-sh
 - 嘗試用 `wmctrl` 關閉所有視窗
 - 發送 SIGTERM / SIGKILL 關閉應用程式
 - 登出與關機時自動觸發
+- 找出 Chrome 的視窗 ID。
+- 將它切換到前景（模擬使用者點選視窗）。
+- 傳送 Ctrl+Q 模擬鍵盤關閉。
 
 ## 相依套件
 - wmctrl
