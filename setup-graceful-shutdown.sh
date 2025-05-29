@@ -1,79 +1,165 @@
 #!/bin/bash
-
 set -e
 
-install_path="/usr/local/bin/graceful-shutdown-all.sh"
-service_path="/etc/systemd/system/graceful-shutdown.service"
+echo "🚀 安裝必要套件..."
+sudo apt update
+sudo apt install -y wmctrl xdotool libnotify-bin
 
-# 寫入主腳本
-cat << 'EOF' | sudo tee "$install_path" > /dev/null
+echo "📂 建立主關閉腳本..."
+sudo tee /usr/local/bin/graceful-shutdown-all.sh > /dev/null << 'EOF'
 #!/bin/bash
-# graceful-shutdown-all.sh
+USER_NAME=$(logname)
+COUNTDOWN=10
+IS_SHUTDOWN=0
+DSM_VMID=820
+DSM_SHUTDOWN_TIMEOUT=600  # 10 分鐘
 
-echo -e "\n[0/6] 通知使用者 + 倒數計時..."
-sudo -u liweilee DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/1000/bus" \
-  zenity --info --text="⚠️ 系統即將關機，所有應用程式將被自動關閉。" --timeout=10 || true
+notify() {
+    DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u "$USER_NAME")/bus \
+    notify-send "⚠ 系統即將關機或登出" "所有應用程式將於 $COUNTDOWN 秒後被自動關閉…" --icon=system-shutdown --urgency=critical || true
+}
 
-for i in {10..1}; do
-  echo "⚠️  $i 秒後將關閉所有應用程式，可按 Ctrl+C 中斷此操作。"
-  sleep 1
-done
+countdown() {
+    for ((i=$COUNTDOWN; i>0; i--)); do
+        echo "⚠️  $i 秒後將關閉所有應用程式，可按 Ctrl+C 中斷此操作。"
+        sleep 1
+    done
+}
 
-echo -e "\n[1/6] 提早 sync 資料..."
-sync
+sync_disks() {
+    echo "[4/8] 預先同步磁碟寫入 (sync)..."
+    sync
+}
 
-echo -e "\n[2/6] 優先關閉 Google Chrome..."
-pkill -15 chrome || true
-sleep 8
-pkill -9 chrome || true
+close_chrome() {
+    echo "[1/8] 嘗試模擬 Ctrl+Shift+Q 關閉 Chrome..."
+    CHROME_WID=$(xdotool search --onlyvisible --class "chrome" | head -n 1)
+    if [ -n "$CHROME_WID" ]; then
+        xdotool windowfocus "$CHROME_WID"
+        xdotool key --clearmodifiers ctrl+shift+q
+        sleep 4
+    fi
+}
 
-echo -e "\n[3/6] 關閉其他常見應用程式..."
-pkill -15 smplayer || true
-sleep 5
-pkill -9 smplayer || true
+close_windows() {
+    echo "[2/8] 嘗試關閉其他視窗（wmctrl -c）"
+    wmctrl -l | awk '{print $1}' | while read -r wid; do
+        wmctrl -ic "$wid"
+    done
+    sleep 4
+}
 
-echo -e "\n[4/6] 主動關閉 DSM 虛擬機 (VMID 820)..."
-qm shutdown 820 || true
+terminate_apps() {
+    echo "[3/8] 發送 SIGTERM..."
+    PIDS=$(ps -u "$USER_NAME" -o pid=,comm= | awk '$2 !~ /^(bash|systemd|graceful-shutdown-all.sh)$/ {print $1}')
+    if [ -n "$PIDS" ]; then
+        echo "$PIDS" | xargs -r kill -15
+        sleep 8
+    fi
+}
 
-for i in {1..60}; do
-  if ! qm status 820 | grep -q "status: running"; then
-    echo "✅ DSM 已關機"
-    break
-  fi
-  echo "⏳ 等待 DSM 關機中（$i 秒）..."
-  sleep 1
-done
+force_kill() {
+    echo "[6/8] 強制關閉殘留程式 (SIGKILL)..."
+    PIDS=$(ps -u "$USER_NAME" -o pid= | grep -v $$)
+    [ -n "$PIDS" ] && echo "$PIDS" | xargs -r kill -9
+}
 
-echo -e "\n[5/6] 卸載所有非系統掛載點..."
-mount | grep "^/dev" | grep -vE "/(boot|efi|/)$" | awk '{print $3}' | tac | while read -r mountpoint; do
-  echo "🔌 卸載 $mountpoint"
-  umount -lf "$mountpoint" 2>/dev/null || echo "⚠️ 無法卸載 $mountpoint"
-done
+try_umount() {
+    echo "[7/8] 嘗試 umount 所有 /mnt/pve/* 掛載點..."
+    for mp in /mnt/pve/*; do
+        mountpoint -q "$mp" && umount -l "$mp"
+    done
+}
 
-echo -e "\n[6/6] 再次 sync，完成收尾..."
-sync
+shutdown_dsm_vm() {
+    echo "[5/8] 主動關閉 DSM VM (VMID=$DSM_VMID) 並等待完成..."
+    # 先嘗試關機指令
+    sudo qm shutdown $DSM_VMID || echo "警告：發送關機指令失敗，可能 VM 未啟動"
+    
+    local elapsed=0
+    while [ $elapsed -lt $DSM_SHUTDOWN_TIMEOUT ]; do
+        # 查詢 VM 狀態
+        status=$(sudo qm status $DSM_VMID 2>/dev/null || echo "stopped")
+        if [[ "$status" != "running" ]]; then
+            echo "DSM VM 已關閉。"
+            break
+        fi
+        echo "等待 DSM VM 關機中，已等候 ${elapsed} 秒..."
+        sleep 5
+        elapsed=$((elapsed + 5))
+    done
+    if [ $elapsed -ge $DSM_SHUTDOWN_TIMEOUT ]; then
+        echo "警告：等待 DSM VM 關機超時 (${DSM_SHUTDOWN_TIMEOUT} 秒)，繼續後續關機程序。"
+    fi
+}
+
+final_action() {
+    echo "[8/8] 完成"
+    [ "$IS_SHUTDOWN" -eq 1 ] && sync && systemctl poweroff
+}
+
+# 判斷是否為關機路徑
+[[ "$1" == "--shutdown" ]] && IS_SHUTDOWN=1
+
+notify
+countdown
+close_chrome
+close_windows
+terminate_apps
+
+# 關機路徑才執行 DSM VM 關閉及 umount
+if [ "$IS_SHUTDOWN" -eq 1 ]; then
+    shutdown_dsm_vm
+    try_umount
+fi
+
+force_kill
+final_action
 EOF
 
-# 權限設定
-sudo chmod +x "$install_path"
+sudo chmod +x /usr/local/bin/graceful-shutdown-all.sh
 
-# 建立 systemd 服務
-cat << EOF | sudo tee "$service_path" > /dev/null
+echo "🧷 建立使用者登出服務..."
+mkdir -p ~/.config/systemd/user
+cat > ~/.config/systemd/user/graceful-exit.service <<EOF
 [Unit]
-Description=Gracefully shutdown all user applications before system shutdown
-DefaultDependencies=no
-Before=shutdown.target reboot.target halt.target
+Description=Graceful shutdown of user applications on logout
+Before=exit.target
 
 [Service]
 Type=oneshot
 ExecStart=/usr/local/bin/graceful-shutdown-all.sh
+TimeoutSec=45
 RemainAfterExit=true
 
 [Install]
-WantedBy=halt.target reboot.target shutdown.target
+WantedBy=exit.target
 EOF
 
-# 重新載入 systemd 並啟用服務
+systemctl --user daemon-reexec
+systemctl --user daemon-reload
+systemctl --user enable graceful-exit.service
+
+echo "🧷 建立系統關機服務..."
+sudo tee /etc/systemd/system/graceful-shutdown.service > /dev/null <<EOF
+[Unit]
+Description=Gracefully shutdown all user applications before system shutdown
+DefaultDependencies=no
+Before=poweroff.target reboot.target halt.target
+After=graphical.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/graceful-shutdown-all.sh --shutdown
+RemainAfterExit=true
+TimeoutSec=720
+
+[Install]
+WantedBy=poweroff.target reboot.target halt.target
+EOF
+
 sudo systemctl daemon-reexec
 sudo systemctl daemon-reload
 sudo systemctl enable graceful-shutdown.service
+
+echo "✅ 安裝完成！下次登出或關機會自動優雅關閉應用程式。"
